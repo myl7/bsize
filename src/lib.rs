@@ -5,5 +5,5 @@ mod grammar;
 mod parse;
 mod scale;
 
-pub use c::{BsizeParse, BsizeRes, BsizeUnit};
-pub use parse::{parse, Error, Unit};
+pub use c::{BsizeBiStrategy, BsizeParse, BsizeRes, BsizeUnit};
+pub use parse::{parse, BiStrategy, Error, Unit};
