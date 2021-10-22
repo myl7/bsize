@@ -30,6 +30,22 @@ impl Debug for Error {
     }
 }
 
+/// Parse human-readable byte size str to the number and unit
+///
+/// # Arguments
+///
+/// * `s`: Parsed str
+/// * `ignore_bi`: If enable, ignore all bi sign and always use decimal, otherwise, recognize bi sign
+/// * `default_bi`: If enable, use binary when no bi sign, otherwise, use decimal when no bi sign.
+/// When there is a bi sign, the behavior is controlled by `ignore_bi`.
+///
+/// returns: Result<(u64, Unit), Error>
+///
+/// # Examples
+///
+/// ```
+/// parse("10MB", false, false)
+/// ```
 pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), Error> {
     let mut lexer = bsizeLexer::new(InputStream::new(s));
     let mut token_src = UnbufferedTokenStream::new_unbuffered(&mut lexer);
@@ -56,14 +72,14 @@ pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), 
                 match i {
                     lexer::Space | lexer::S => (),
                     lexer::Bit | lexer::BitBody => {
-                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi, false);
+                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi);
                         unit = Unit::Bit;
                         is_ok = true;
                     }
                     lexer::Byte | lexer::ByteBody => {
-                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi, false);
+                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi);
                         unit = Unit::Byte;
-                        is_bi = true;
+                        is_ok = true;
                     }
                     lexer::BiSign => is_bi = true,
                     lexer::Kilo | lexer::KiloWord | lexer::KibiWord => {
@@ -102,23 +118,17 @@ pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), 
         }
     }
     if !is_ok {
-        num *= choose_scale(scale, ignore_bi, default_bi, is_bi, true);
+        num *= choose_scale(scale, ignore_bi, default_bi, is_bi);
     }
 
     return Ok((num, unit));
 }
 
-fn choose_scale(
-    scale: (Scale, BiScale),
-    ignore_bi: bool,
-    default_bi: bool,
-    is_bi: bool,
-    is_default: bool,
-) -> u64 {
+fn choose_scale(scale: (Scale, BiScale), ignore_bi: bool, default_bi: bool, is_bi: bool) -> u64 {
     if ignore_bi {
         return scale.0 as u64;
     }
-    if (is_default && default_bi) || (!is_default && is_bi) {
+    if is_bi || default_bi {
         scale.1 as u64
     } else {
         scale.0 as u64
@@ -130,7 +140,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn valid_cases() {
-        assert_eq!(parse("10M", false, false).unwrap(), (10000000, Unit::None));
+    fn abbr() {
+        assert_eq!(parse("10", false, false).unwrap(), (10, Unit::None));
+        assert_eq!(parse("10K", false, false).unwrap(), (10000, Unit::None));
+        assert_eq!(parse("10KB", false, false).unwrap(), (10000, Unit::Byte));
+        assert_eq!(parse("10Kb", false, false).unwrap(), (10000, Unit::Bit));
+        assert_eq!(parse("10KiB", false, false).unwrap(), (10240, Unit::Byte));
+
+        assert_eq!(parse("10", false, true).unwrap(), (10, Unit::None));
+        assert_eq!(parse("10K", false, true).unwrap(), (10240, Unit::None));
+        assert_eq!(parse("10KB", false, true).unwrap(), (10240, Unit::Byte));
+        assert_eq!(parse("10Kb", false, true).unwrap(), (10240, Unit::Bit));
+        assert_eq!(parse("10KiB", false, true).unwrap(), (10240, Unit::Byte));
+
+        assert_eq!(parse("10", true, true).unwrap(), (10, Unit::None));
+        assert_eq!(parse("10K", true, true).unwrap(), (10000, Unit::None));
+        assert_eq!(parse("10KB", true, true).unwrap(), (10000, Unit::Byte));
+        assert_eq!(parse("10Kb", true, true).unwrap(), (10000, Unit::Bit));
+        assert_eq!(parse("10KiB", true, true).unwrap(), (10000, Unit::Byte));
     }
 }
