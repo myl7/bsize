@@ -1,7 +1,6 @@
 use crate::grammar::lexer::{self, bsizeLexer};
 use crate::scale::{BiScale, Scale};
 use antlr_rust::token::Token;
-use antlr_rust::token_factory::ArenaCommonFactory;
 use antlr_rust::token_stream::UnbufferedTokenStream;
 use antlr_rust::InputStream;
 
@@ -16,9 +15,8 @@ pub enum Error {
 }
 
 pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
-    let tf = ArenaCommonFactory::default();
-    let mut lexer = bsizeLexer::new_with_token_factory(InputStream::new(s), &tf.into());
-    let mut token_src = UnbufferedTokenStream::new_buffered(lexer);
+    let mut lexer = bsizeLexer::new(InputStream::new(s));
+    let mut token_src = UnbufferedTokenStream::new_unbuffered(&mut lexer);
     let mut token_iter = token_src.token_iter();
 
     let mut num;
@@ -34,11 +32,14 @@ pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
     let mut is_bi = false;
     let mut is_ok = false;
     let mut scale = (Scale::B, BiScale::B);
-    let f = || {
+    let mut f = |is_bi: bool, scale: (Scale, BiScale)| {
+        if is_ok {
+            return;
+        }
         if !is_bi | ignore_bi {
-            num *= scale.0
+            num *= scale.0 as u64
         } else {
-            num *= scale.1
+            num *= scale.1 as u64
         }
         is_ok = true;
     };
@@ -50,11 +51,11 @@ pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
                 match i {
                     lexer::Space | lexer::S => (),
                     lexer::Bit | lexer::BitBody => {
-                        f();
+                        f(is_bi, scale);
                         unit = Unit::Bit
                     }
                     lexer::Byte | lexer::ByteBody => {
-                        f();
+                        f(is_bi, scale);
                         unit = Unit::Byte
                     }
                     lexer::BiSign => is_bi = true,
@@ -93,9 +94,7 @@ pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
             }
         }
     }
-    if !is_ok {
-        f();
-    }
+    f(is_bi, scale);
 
     return Ok((num, unit));
 }

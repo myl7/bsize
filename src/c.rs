@@ -1,9 +1,12 @@
 #![allow(non_camel_case_types)]
 
 use crate::parse::parse;
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 
+#[derive(FromPrimitive)]
 #[repr(C)]
 pub enum BsizeUnit {
     kBit = 1,
@@ -25,10 +28,10 @@ pub extern "C" fn BsizeParse(p: *const c_char, ignore_bi: bool) -> BsizeRes {
         Ok(d) => BsizeRes {
             error: 0,
             num: d.0,
-            unit: d.1.into(),
+            unit: FromPrimitive::from_isize(d.1 as isize).unwrap(),
         },
         Err(e) => BsizeRes {
-            error: e.into(),
+            error: e as isize as c_int,
             num: 0,
             unit: BsizeUnit::kNone,
         },

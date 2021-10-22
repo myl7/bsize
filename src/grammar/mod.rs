@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub mod bsizelexer;
 pub mod bsizelistener;
 pub mod bsizeparser;
