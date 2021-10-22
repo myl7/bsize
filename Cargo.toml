@@ -1,0 +1,11 @@
+[package]
+name = "bsize"
+version = "0.1.0"
+edition = "2018"
+authors = ["myl7 <myl@myl.moe>"]
+license = "MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
