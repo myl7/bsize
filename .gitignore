@@ -6,3 +6,4 @@ lib/
 !/src/grammar/mod.rs
 /include/bsize.h
 cmake-build-*/
+venv/
