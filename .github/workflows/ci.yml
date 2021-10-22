@@ -1,0 +1,47 @@
+on:
+  push:
+    branches:
+      - main
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          default: true
+      - name: Install cbindgen
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cbindgen
+      - name: Get antlr4
+        run: |
+          mkdir -p lib
+          curl -sSLo lib/antlr4.jar https://github.com/rrevenantt/antlr4rust/releases/download/antlr4-4.8-2-Rust-0.2/antlr4-4.8-2-SNAPSHOT-complete.jar
+      - name: Run prebuild script
+        run: bash prebuild.sh
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: Put lib to dest
+        run: cp target/release/libbsize.a lib
+      - name: Test C project
+        run: |
+          cd test/c && mkdir -p build && cd build
+          cmake .. && make && ./test
+      - name: Collect output
+        run: |
+          mkdir -p dest
+          cp -r include dest && cp lib/libbsize.a dest
+      - uses: actions/upload-artifact@v2
+        with:
+          name: bsize
+          path: dest
