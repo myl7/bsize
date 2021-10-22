@@ -52,7 +52,7 @@ pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), 
         match token_iter.next() {
             None => break,
             Some(t) => {
-                let i = t.get_token_index();
+                let i = t.get_token_type();
                 match i {
                     lexer::Space | lexer::S => (),
                     lexer::Bit | lexer::BitBody => {
