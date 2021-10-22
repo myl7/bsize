@@ -14,7 +14,7 @@ pub enum Error {
     InvalidInput = -1,
 }
 
-pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
+pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), Error> {
     let mut lexer = bsizeLexer::new(InputStream::new(s));
     let mut token_src = UnbufferedTokenStream::new_unbuffered(&mut lexer);
     let mut token_iter = token_src.token_iter();
@@ -32,17 +32,6 @@ pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
     let mut is_bi = false;
     let mut is_ok = false;
     let mut scale = (Scale::B, BiScale::B);
-    let mut f = |is_bi: bool, scale: (Scale, BiScale)| {
-        if is_ok {
-            return;
-        }
-        if !is_bi | ignore_bi {
-            num *= scale.0 as u64
-        } else {
-            num *= scale.1 as u64
-        }
-        is_ok = true;
-    };
     loop {
         match token_iter.next() {
             None => break,
@@ -51,12 +40,14 @@ pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
                 match i {
                     lexer::Space | lexer::S => (),
                     lexer::Bit | lexer::BitBody => {
-                        f(is_bi, scale);
-                        unit = Unit::Bit
+                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi, false);
+                        unit = Unit::Bit;
+                        is_ok = true;
                     }
                     lexer::Byte | lexer::ByteBody => {
-                        f(is_bi, scale);
-                        unit = Unit::Byte
+                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi, false);
+                        unit = Unit::Byte;
+                        is_bi = true;
                     }
                     lexer::BiSign => is_bi = true,
                     lexer::Kilo | lexer::KiloWord | lexer::KibiWord => {
@@ -94,7 +85,26 @@ pub fn parse(s: &str, ignore_bi: bool) -> Result<(u64, Unit), Error> {
             }
         }
     }
-    f(is_bi, scale);
+    if !is_ok {
+        num *= choose_scale(scale, ignore_bi, default_bi, is_bi, true);
+    }
 
     return Ok((num, unit));
+}
+
+fn choose_scale(
+    scale: (Scale, BiScale),
+    ignore_bi: bool,
+    default_bi: bool,
+    is_bi: bool,
+    is_default: bool,
+) -> u64 {
+    if ignore_bi {
+        return scale.0 as u64;
+    }
+    if (is_default && default_bi) || (!is_default && is_bi) {
+        scale.1 as u64
+    } else {
+        scale.0 as u64
+    }
 }

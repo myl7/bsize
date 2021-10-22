@@ -22,9 +22,9 @@ pub struct BsizeRes {
 }
 
 #[no_mangle]
-pub extern "C" fn BsizeParse(p: *const c_char, ignore_bi: bool) -> BsizeRes {
+pub extern "C" fn BsizeParse(p: *const c_char, ignore_bi: bool, default_bi: bool) -> BsizeRes {
     let s = unsafe { CStr::from_ptr(p) }.to_str().unwrap();
-    match parse(s, ignore_bi) {
+    match parse(s, ignore_bi, default_bi) {
         Ok(d) => BsizeRes {
             error: 0,
             num: d.0,
