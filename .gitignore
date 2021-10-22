@@ -1,9 +1,9 @@
 /target
 .idea/
-lib/
+/lib/*
+!/lib/libbsize.so
 /src/grammar/*
 !/src/grammar/bsize.g4
 !/src/grammar/mod.rs
-/include/bsize.h
 cmake-build-*/
 venv/
