@@ -3,11 +3,19 @@ use crate::scale::{BiScale, Scale};
 use antlr_rust::token::Token;
 use antlr_rust::token_stream::UnbufferedTokenStream;
 use antlr_rust::InputStream;
-use num_derive::ToPrimitive;
+use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::ToPrimitive;
 use std::fmt::{Debug, Formatter};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, FromPrimitive)]
+pub enum BiStrategy {
+    CheckBi = 1,
+    AlwaysTen = 2,
+    AlwaysBi = 3,
+    RevertBi = 4,
+}
+
+#[derive(Debug, Eq, PartialEq, ToPrimitive)]
 pub enum Unit {
     Bit = 1,
     Byte = 2,
@@ -35,18 +43,20 @@ impl Debug for Error {
 /// # Arguments
 ///
 /// * `s`: Parsed str
-/// * `ignore_bi`: If enable, ignore all bi sign and always use decimal, otherwise, recognize bi sign
-/// * `default_bi`: If enable, use binary when no bi sign, otherwise, use decimal when no bi sign.
-/// When there is a bi sign, the behavior is controlled by `ignore_bi`.
+/// * `bi_strategy`: If 1, check whether there is a bi sign;
+/// If 2, ignore all bi signs and always use decimal;
+/// If 3, ignore all bi signs and always use binary;
+/// If 4, revert bi sign function which means
+/// default to use binary and when seeing a bi sign, use decimal
 ///
 /// returns: Result<(u64, Unit), Error>
 ///
 /// # Examples
 ///
 /// ```
-/// parse("10MB", false, false)
+/// parse("10MB", BiStrategy::CheckBi)
 /// ```
-pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), Error> {
+pub fn parse(s: &str, bi_strategy: BiStrategy) -> Result<(u64, Unit), Error> {
     let mut lexer = bsizeLexer::new(InputStream::new(s));
     let mut token_src = UnbufferedTokenStream::new_unbuffered(&mut lexer);
     let mut token_iter = token_src.token_iter();
@@ -72,12 +82,12 @@ pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), 
                 match i {
                     lexer::Space | lexer::S => (),
                     lexer::Bit | lexer::BitBody => {
-                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi);
+                        num *= choose_scale(scale, bi_strategy, is_bi);
                         unit = Unit::Bit;
                         is_ok = true;
                     }
                     lexer::Byte | lexer::ByteBody => {
-                        num *= choose_scale(scale, ignore_bi, default_bi, is_bi);
+                        num *= choose_scale(scale, bi_strategy, is_bi);
                         unit = Unit::Byte;
                         is_ok = true;
                     }
@@ -118,20 +128,30 @@ pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), 
         }
     }
     if !is_ok {
-        num *= choose_scale(scale, ignore_bi, default_bi, is_bi);
+        num *= choose_scale(scale, bi_strategy, is_bi);
     }
 
     return Ok((num, unit));
 }
 
-fn choose_scale(scale: (Scale, BiScale), ignore_bi: bool, default_bi: bool, is_bi: bool) -> u64 {
-    if ignore_bi {
-        return scale.0 as u64;
-    }
-    if is_bi || default_bi {
-        scale.1 as u64
-    } else {
-        scale.0 as u64
+fn choose_scale(scale: (Scale, BiScale), bi_strategy: BiStrategy, is_bi: bool) -> u64 {
+    match bi_strategy {
+        BiStrategy::CheckBi => {
+            if is_bi {
+                scale.1 as u64
+            } else {
+                scale.0 as u64
+            }
+        }
+        BiStrategy::AlwaysTen => scale.0 as u64,
+        BiStrategy::AlwaysBi => scale.1 as u64,
+        BiStrategy::RevertBi => {
+            if is_bi {
+                scale.0 as u64
+            } else {
+                scale.1 as u64
+            }
+        }
     }
 }
 
@@ -141,22 +161,79 @@ mod tests {
 
     #[test]
     fn abbr() {
-        assert_eq!(parse("10", false, false).unwrap(), (10, Unit::None));
-        assert_eq!(parse("10K", false, false).unwrap(), (10000, Unit::None));
-        assert_eq!(parse("10KB", false, false).unwrap(), (10000, Unit::Byte));
-        assert_eq!(parse("10Kb", false, false).unwrap(), (10000, Unit::Bit));
-        assert_eq!(parse("10KiB", false, false).unwrap(), (10240, Unit::Byte));
+        assert_eq!(parse("10", BiStrategy::CheckBi).unwrap(), (10, Unit::None));
+        assert_eq!(
+            parse("10K", BiStrategy::CheckBi).unwrap(),
+            (10000, Unit::None)
+        );
+        assert_eq!(
+            parse("10KB", BiStrategy::CheckBi).unwrap(),
+            (10000, Unit::Byte)
+        );
+        assert_eq!(
+            parse("10Kb", BiStrategy::CheckBi).unwrap(),
+            (10000, Unit::Bit)
+        );
+        assert_eq!(
+            parse("10KiB", BiStrategy::CheckBi).unwrap(),
+            (10240, Unit::Byte)
+        );
 
-        assert_eq!(parse("10", false, true).unwrap(), (10, Unit::None));
-        assert_eq!(parse("10K", false, true).unwrap(), (10240, Unit::None));
-        assert_eq!(parse("10KB", false, true).unwrap(), (10240, Unit::Byte));
-        assert_eq!(parse("10Kb", false, true).unwrap(), (10240, Unit::Bit));
-        assert_eq!(parse("10KiB", false, true).unwrap(), (10240, Unit::Byte));
+        assert_eq!(parse("10", BiStrategy::AlwaysBi).unwrap(), (10, Unit::None));
+        assert_eq!(
+            parse("10K", BiStrategy::AlwaysBi).unwrap(),
+            (10240, Unit::None)
+        );
+        assert_eq!(
+            parse("10KB", BiStrategy::AlwaysBi).unwrap(),
+            (10240, Unit::Byte)
+        );
+        assert_eq!(
+            parse("10Kb", BiStrategy::AlwaysBi).unwrap(),
+            (10240, Unit::Bit)
+        );
+        assert_eq!(
+            parse("10KiB", BiStrategy::AlwaysBi).unwrap(),
+            (10240, Unit::Byte)
+        );
 
-        assert_eq!(parse("10", true, true).unwrap(), (10, Unit::None));
-        assert_eq!(parse("10K", true, true).unwrap(), (10000, Unit::None));
-        assert_eq!(parse("10KB", true, true).unwrap(), (10000, Unit::Byte));
-        assert_eq!(parse("10Kb", true, true).unwrap(), (10000, Unit::Bit));
-        assert_eq!(parse("10KiB", true, true).unwrap(), (10000, Unit::Byte));
+        assert_eq!(
+            parse("10", BiStrategy::AlwaysTen).unwrap(),
+            (10, Unit::None)
+        );
+        assert_eq!(
+            parse("10K", BiStrategy::AlwaysTen).unwrap(),
+            (10000, Unit::None)
+        );
+        assert_eq!(
+            parse("10KB", BiStrategy::AlwaysTen).unwrap(),
+            (10000, Unit::Byte)
+        );
+        assert_eq!(
+            parse("10Kb", BiStrategy::AlwaysTen).unwrap(),
+            (10000, Unit::Bit)
+        );
+        assert_eq!(
+            parse("10KiB", BiStrategy::AlwaysTen).unwrap(),
+            (10000, Unit::Byte)
+        );
+
+        assert_eq!(parse("10", BiStrategy::RevertBi).unwrap(), (10, Unit::None));
+        assert_eq!(
+            parse("10K", BiStrategy::RevertBi).unwrap(),
+            (10240, Unit::None)
+        );
+        assert_eq!(
+            parse("10KB", BiStrategy::RevertBi).unwrap(),
+            (10240, Unit::Byte)
+        );
+        assert_eq!(
+            parse("10Kb", BiStrategy::RevertBi).unwrap(),
+            (10240, Unit::Bit)
+        );
+        assert_eq!(
+            parse("10KiB", BiStrategy::RevertBi).unwrap(),
+            (10000, Unit::Byte)
+        );
     }
 }
