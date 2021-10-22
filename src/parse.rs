@@ -3,15 +3,31 @@ use crate::scale::{BiScale, Scale};
 use antlr_rust::token::Token;
 use antlr_rust::token_stream::UnbufferedTokenStream;
 use antlr_rust::InputStream;
+use num_derive::ToPrimitive;
+use num_traits::ToPrimitive;
+use std::fmt::{Debug, Formatter};
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum Unit {
     Bit = 1,
     Byte = 2,
     None = 3,
 }
 
+#[derive(ToPrimitive)]
 pub enum Error {
     InvalidInput = -1,
+}
+
+impl Debug for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "bsize error code {}",
+            self.to_isize().unwrap()
+        ))
+        .unwrap();
+        Ok(())
+    }
 }
 
 pub fn parse(s: &str, ignore_bi: bool, default_bi: bool) -> Result<(u64, Unit), Error> {
@@ -106,5 +122,15 @@ fn choose_scale(
         scale.1 as u64
     } else {
         scale.0 as u64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_cases() {
+        assert_eq!(parse("10M", false, false).unwrap(), (10000000, Unit::None));
     }
 }

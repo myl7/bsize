@@ -28,7 +28,7 @@ pub extern "C" fn BsizeParse(p: *const c_char, ignore_bi: bool, default_bi: bool
         Ok(d) => BsizeRes {
             error: 0,
             num: d.0,
-            unit: FromPrimitive::from_isize(d.1 as isize).unwrap(),
+            unit: BsizeUnit::from_isize(d.1 as isize).unwrap(),
         },
         Err(e) => BsizeRes {
             error: e as isize as c_int,
