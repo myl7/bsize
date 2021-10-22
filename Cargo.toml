@@ -6,7 +6,7 @@ authors = ["myl7 <myl@myl.moe>"]
 license = "MIT"
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
 antlr-rust = "=0.2"

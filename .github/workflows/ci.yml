@@ -41,8 +41,8 @@ jobs:
           cmake .. && make && ./test
       - name: Collect output
         run: |
-          mkdir -p dest
-          cp -r include dest && cp lib/libbsize.a dest
+          mkdir -p dest dest/lib
+          cp -r include dest && cp target/release/libbsize.{a,so} dest/lib
       - uses: actions/upload-artifact@v2
         with:
           name: bsize
